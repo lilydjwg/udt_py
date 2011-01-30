@@ -56,5 +56,95 @@ class TestSocket(unittest.TestCase):
     def test_cleanup(self):
         udt.cleanup()
 
+    def test_getset_sockopt_mss(self):
+        s = self.create_socket()
+        val = s.getsockopt(0, udt.UDT_MSS)
+        self.assertEquals(val, 1500)
+
+        s.setsockopt(0, udt.UDT_MSS, 1800)
+        val = s.getsockopt(0, udt.UDT_MSS)
+        self.assertEquals(val, 1800)
+
+    def test_getset_sockopt_sndsyn(self):
+        s = self.create_socket()
+        val = s.getsockopt(0, udt.UDT_SNDSYN)
+        self.assertEquals(val, True)
+
+        s.setsockopt(0, udt.UDT_SNDSYN, False)
+        val = s.getsockopt(0, udt.UDT_SNDSYN)
+        self.assertEquals(val, False)
+
+    def test_getset_sockopt_rcvsyn(self):
+        s = self.create_socket()
+        val = s.getsockopt(0, udt.UDT_RCVSYN)
+        self.assertEquals(val, True)
+
+    def test_getset_sockopt_fc(self):
+        s = self.create_socket()
+        val = s.getsockopt(0, udt.UDT_FC)
+        self.assertEquals(val, 25600)
+
+        s.setsockopt(0, udt.UDT_FC, 10000)
+        val = s.getsockopt(0, udt.UDT_FC)
+        self.assertEquals(val, 10000)
+
+    def test_getset_sockopt_sndbuf(self):
+        s = self.create_socket()
+        val = s.getsockopt(0, udt.UDT_SNDBUF)
+        self.assertEquals(val, 12058624)
+
+        s.setsockopt(0, udt.UDT_SNDBUF, 198720)
+        val = s.getsockopt(0, udt.UDT_SNDBUF)
+        self.assertEquals(val, 198720)
+
+    def test_getsockopt_rcvbuf(self):
+        s = self.create_socket()
+        val = s.getsockopt(0, udt.UDT_RCVBUF)
+        self.assertEquals(val, 12058624)
+
+        s.setsockopt(0, udt.UDT_RCVBUF, 198720)
+        val = s.getsockopt(0, udt.UDT_RCVBUF)
+        self.assertEquals(val, 198720)
+
+    def test_getsockopt_udp_sndbuf(self):
+        s = self.create_socket()
+        val = s.getsockopt(0, udt.UDP_SNDBUF)
+
+        s.setsockopt(0, udt.UDP_SNDBUF, 10000)
+        val = s.getsockopt(0, udt.UDP_SNDBUF)
+        self.assertEquals(val, 10000)
+
+    def test_getsockopt_udp_rcvbuf(self):
+        s = self.create_socket()
+        val = s.getsockopt(0, udt.UDP_RCVBUF)
+
+    def test_getsockopt_snd_timeout(self):
+        s = self.create_socket()
+        val = s.getsockopt(0, udt.UDT_SNDTIMEO)
+        self.assertEquals(val, -1)
+
+    def test_getsockopt_rcv_timeout(self):
+        s = self.create_socket()
+        val = s.getsockopt(0, udt.UDT_RCVTIMEO)
+        self.assertEquals(val, -1)
+
+    def test_getsockopt_reuseaddr(self):
+        s = self.create_socket()
+        val = s.getsockopt(0, udt.UDT_REUSEADDR)
+        self.assertEquals(val, True)
+
+    def test_getsockopt_linger(self):
+        s = self.create_socket()
+        val = s.getsockopt(0, udt.UDT_LINGER)
+        self.assertEquals(val, (1, 180))
+
+    def test_getsockopt_max_bw(self):
+        s = self.create_socket()
+        val = s.getsockopt(0, udt.UDT_MAXBW)
+        self.assertEquals(val, -1)
+
+    def test_setsockopt(self):
+        pass
+
 unittest.main()
 

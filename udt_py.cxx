@@ -1,4 +1,5 @@
 #include <iostream>
+#include <memory>
 #include <udt.h>
 #include <Python.h>
 #include <arpa/inet.h>
@@ -479,6 +480,231 @@ PY_TRY_CXX
 
 PY_CATCH_CXX(NULL)
 }
+
+/* 
+    It looks like UDT::getsockopt doesn't check the buffer length.
+    The big switch makes it easier to call from Python and prevents segfaults.
+*/
+PyObject* pyudt_socket_getsockopt(PyObject *self, PyObject *args, PyObject *kwargs)
+{
+PY_TRY_CXX
+    int level      = 0;
+    int opt_name   = 0;
+    int opt_len    = 0;
+    
+    if(!PyArg_ParseTuple(args, "ii", &level, &opt_name))
+    {
+        return NULL;
+    }
+
+    pyudt_socket_object* py_socket = ((pyudt_socket_object*)self);
+     
+    UDT::SOCKOPT switch_opt = (UDT::SOCKOPT)opt_name;   
+    switch(switch_opt)
+    {
+        case UDT_MSS:
+        case UDT_FC:
+        case UDT_SNDBUF:
+        case UDT_RCVBUF:
+        case UDP_SNDBUF:
+        case UDP_RCVBUF:
+        case UDT_SNDTIMEO:
+        case UDT_RCVTIMEO:
+        {
+            int opt_val = 0;
+            if (UDT::getsockopt(
+                py_socket->cc_socket, 
+                level, switch_opt, &opt_val, &opt_len) == UDT::ERROR)
+            {
+                throw py_udt_error();
+            }
+            return Py_BuildValue("i", opt_val);
+            break;
+        }
+        case UDT_SNDSYN:
+        case UDT_RCVSYN:
+        case UDT_RENDEZVOUS:
+        case UDT_REUSEADDR:
+        {
+            bool opt_val = true;
+            if (UDT::getsockopt(py_socket->cc_socket, 
+                    level, switch_opt, &opt_val, &opt_len) == UDT::ERROR)
+            {
+                throw py_udt_error();
+            }
+            if(opt_val)
+            {   
+                Py_RETURN_TRUE;
+            }
+            else
+            {
+                Py_RETURN_FALSE;
+            }
+            break;
+        }
+        case UDT_CC:
+        {
+            PyErr_SetString(PyExc_NotImplementedError, "UTC_CC not implemented yet");
+            return NULL;
+            break;
+        }
+        case UDT_LINGER:
+        {
+            linger opt_val;
+            opt_val.l_onoff = 0;
+            opt_val.l_linger = 0;
+
+            opt_len = sizeof(linger);
+            if (UDT::getsockopt(py_socket->cc_socket, 
+                    level, switch_opt, &opt_val, &opt_len) == UDT::ERROR)
+            {
+                throw py_udt_error();
+            }
+            return Py_BuildValue("(ii)", opt_val.l_onoff, opt_val.l_linger);
+            break;
+        }
+        case UDT_MAXBW:
+        {
+            int64_t opt_val;
+            if (UDT::getsockopt(py_socket->cc_socket, 
+                    level, switch_opt, &opt_val, &opt_len) == UDT::ERROR)
+            {
+                throw py_udt_error();
+            }
+            return Py_BuildValue("l", opt_val);
+            break;
+        }
+        default:
+        {
+            PyErr_SetString(PyExc_ValueError, "unknown socket option");
+            return NULL;
+        }
+    }
+PY_CATCH_CXX(NULL)
+}
+
+PyObject* pyudt_socket_setsockopt(PyObject *self, PyObject *args, PyObject *kwargs)
+{
+PY_TRY_CXX
+    int level      = 0;
+    int opt_name   = 0;
+    PyObject *opt_obj = NULL;
+    
+    if(!PyArg_ParseTuple(args, "iiO", &level, &opt_name, &opt_obj))
+    {
+        return NULL;
+    }
+
+    pyudt_socket_object* py_socket = ((pyudt_socket_object*)self);
+     
+    UDT::SOCKOPT switch_opt = (UDT::SOCKOPT)opt_name;   
+    switch(switch_opt)
+    {
+        case UDT_MSS:
+        case UDT_FC:
+        case UDT_SNDBUF:
+        case UDT_RCVBUF:
+        case UDP_SNDBUF:
+        case UDP_RCVBUF:
+        case UDT_SNDTIMEO:
+        case UDT_RCVTIMEO:
+        {
+            int opt_val = 0;
+            if(!PyArg_ParseTuple(args, "iii", &level, &opt_name, &opt_val))
+            {
+                return NULL;
+            }
+            if (UDT::setsockopt(
+                py_socket->cc_socket, 
+                level, switch_opt, &opt_val, sizeof(int)) == UDT::ERROR)
+            {
+                throw py_udt_error();
+            }
+            Py_RETURN_NONE;
+            break;
+        }
+        case UDT_SNDSYN:
+        case UDT_RCVSYN:
+        case UDT_RENDEZVOUS:
+        case UDT_REUSEADDR:
+        {
+            bool opt_val = true;
+            if(opt_obj == Py_True)
+            {   
+                opt_val = true;
+            }
+            else if(opt_obj == Py_False)
+            {
+                opt_val = false;
+            }
+            else
+            {
+                PyErr_SetString(PyExc_TypeError, "option must be boolean");
+                return NULL;
+            }
+            
+        
+            if (UDT::setsockopt(py_socket->cc_socket, 
+                    level, switch_opt, &opt_val, sizeof(bool)) == UDT::ERROR)
+            {
+                throw py_udt_error();
+            }
+            Py_RETURN_NONE;
+            break;
+        }
+        case UDT_CC:
+        {
+            PyErr_SetString(PyExc_NotImplementedError, "UTC_CC not implemented yet");
+            return NULL;
+            break;
+        }
+        case UDT_LINGER:
+        {
+            linger opt_val;
+            int opt_onoff;
+            int opt_linger;
+
+            if(!PyArg_ParseTuple(args, "ii(ii)", &level, &opt_name, &opt_onoff, &opt_linger))
+            {
+                return NULL;
+            }
+
+            opt_val.l_onoff   = opt_onoff;
+            opt_val.l_linger  = opt_linger;
+
+            if (UDT::setsockopt(py_socket->cc_socket, 
+                    level, switch_opt, &opt_val, sizeof(linger)) == UDT::ERROR)
+            {
+                throw py_udt_error();
+            }
+            Py_RETURN_NONE;
+            break;
+        }
+        case UDT_MAXBW:
+        {
+            int64_t opt_val;
+            if(!PyArg_ParseTuple(args, "iil", &level, &opt_name, &opt_val))
+            {   
+                return NULL;
+            }
+
+            if (UDT::setsockopt(py_socket->cc_socket, 
+                    level, switch_opt, &opt_val, sizeof(int64_t)) == UDT::ERROR)
+            {
+                throw py_udt_error();
+            }
+            return Py_BuildValue("l", opt_val);
+            break;
+        }
+        default:
+        {
+            PyErr_SetString(PyExc_ValueError, "unknown socket option");
+            return NULL;
+        }
+    }
+PY_CATCH_CXX(NULL)
+}
+
 static PyMethodDef pyudt_socket_methods[] = {
     {
         "accept",  
@@ -539,6 +765,18 @@ static PyMethodDef pyudt_socket_methods[] = {
         (PyCFunction)pyudt_socket_perfmon, 
         METH_VARARGS, 
         "get perfmon stats"
+    },
+    {
+        "getsockopt",  
+        (PyCFunction)pyudt_socket_getsockopt, 
+        METH_VARARGS, 
+        "get socket options"
+    },
+    {
+        "setsockopt",  
+        (PyCFunction)pyudt_socket_setsockopt, 
+        METH_VARARGS, 
+        "set socket options"
     },
     {NULL}  /* Sentinel */
 };
