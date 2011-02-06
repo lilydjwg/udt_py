@@ -7,6 +7,7 @@
 #include "udt_py.h"
 
 PyObject* pyudt_socket_accept(PyObject *self, PyObject *args, PyObject *kwargs);
+static PyObject* pyudt_epoll_add_usock(PyObject *self, PyObject *args, PyObject *kwargs);
 
 #define PY_TRY_CXX \
 try \
@@ -115,20 +116,6 @@ unsigned int RecvBuffer::set_buf_len(unsigned int new_len)
     return buf_len;
 }
 
-static PyObject* pyudt_socket_get_family(PyObject *py_socket)
-{
-    return Py_BuildValue("i", ((pyudt_socket_object*)py_socket)->family);
-}
-
-static PyObject* pyudt_socket_get_type(PyObject *py_socket)
-{
-    return Py_BuildValue("i", ((pyudt_socket_object*)py_socket)->type);
-}
-
-static PyObject* pyudt_socket_get_proto(PyObject *py_socket)
-{
-    return Py_BuildValue("i", ((pyudt_socket_object*)py_socket)->proto);
-}
 
 int pyudt_epoll_init(PyObject *self, PyObject *args, PyObject *kwargs)
 {
@@ -146,19 +133,52 @@ PY_TRY_CXX
 PY_CATCH_CXX(-1)
 }
 
+PyObject* pyudt_epoll_release(PyObject *self, PyObject *args, PyObject *kwargs)
+{
+PY_TRY_CXX
+
+    if(!PyArg_ParseTuple(args, ""))
+    {
+        return NULL;
+    }
+
+    if(UDT::epoll_release(((pyudt_epoll_object*)self)->eid))
+    {
+        throw py_udt_error();
+    }
+    Py_RETURN_NONE;
+PY_CATCH_CXX(NULL)
+}
+
 
 static PyObject* pyudt_epoll_get_eid(PyObject *py_epoll)
 {
     return Py_BuildValue("i", ((pyudt_epoll_object*)py_epoll)->eid);
 }
 
-static PyGetSetDef pyudt_socket_getset[] = {
+static PyGetSetDef pyudt_epoll_getset[] = {
     {
         (char*)"eid", 
         (getter)pyudt_epoll_get_eid, 
         NULL,
         (char*)"get epoll id",
         NULL
+    },
+    {NULL}  /* Sentinel */
+};
+
+static PyMethodDef pyudt_epoll_methods[] = {
+    {
+        "release",  
+        (PyCFunction)pyudt_epoll_release, 
+        METH_VARARGS, 
+        "epoll release"
+    },
+    {
+        "add_usock",  
+        (PyCFunction)pyudt_epoll_add_usock, 
+        METH_VARARGS, 
+        "add usock to epoll"
     },
     {NULL}  /* Sentinel */
 };
@@ -192,9 +212,9 @@ static PyTypeObject pyudt_epoll_type = {
     0,                              /* tp_weaklistoffset */
     0,                              /* tp_iter */
     0,                              /* tp_iternext */
-    0,                              /* tp_methods */
+    pyudt_epoll_methods,            /* tp_methods */
     0,                              /* tp_members */
-    0,                              /* tp_getset */
+    pyudt_epoll_getset,             /* tp_getset */
     0,                              /* tp_base */
     0,                              /* tp_dict */
     0,                              /* tp_descr_get */
@@ -206,6 +226,21 @@ static PyTypeObject pyudt_epoll_type = {
 
 };
 
+
+static PyObject* pyudt_socket_get_family(PyObject *py_socket)
+{
+    return Py_BuildValue("i", ((pyudt_socket_object*)py_socket)->family);
+}
+
+static PyObject* pyudt_socket_get_type(PyObject *py_socket)
+{
+    return Py_BuildValue("i", ((pyudt_socket_object*)py_socket)->type);
+}
+
+static PyObject* pyudt_socket_get_proto(PyObject *py_socket)
+{
+    return Py_BuildValue("i", ((pyudt_socket_object*)py_socket)->proto);
+}
 PyObject* pyudt_socket_connect(PyObject *self, PyObject *args, PyObject *kwargs)
 {
 PY_TRY_CXX
@@ -984,6 +1019,27 @@ PY_TRY_CXX
 PY_CATCH_CXX(NULL)
 }
 
+static PyObject* pyudt_epoll_add_usock(PyObject *self, PyObject *args, PyObject *kwargs)
+{
+PY_TRY_CXX
+    int eid = ((pyudt_epoll_object*)self)->eid;
+    PyObject *sock = NULL;
+    
+    /*
+    if(!PyArg_ParseTuple(args, "O!", sock, &pyudt_socket_type))
+    {
+        return NULL;
+    }*/
+
+    /*
+    if(UDT::epoll_add_usock(eid, ))
+    {
+        throw py_udt_error();
+    }*/
+    Py_RETURN_NONE;
+PY_CATCH_CXX(NULL)
+}
+
 
 PyMODINIT_FUNC
 init_udt(void)
@@ -1025,4 +1081,7 @@ init_udt(void)
     if(PyModule_AddIntConstant(module, "UDT_RCVTIMEO",    UDT_RCVTIMEO) == -1   ) {return;}
     if(PyModule_AddIntConstant(module, "UDT_REUSEADDR",   UDT_REUSEADDR) == -1  ) {return;}
     if(PyModule_AddIntConstant(module, "UDT_MAXBW",       UDT_MAXBW)    == -1   ) {return;}
+    if(PyModule_AddIntConstant(module, "UDT_EPOLL_IN",    UDT_EPOLL_IN) == -1   ) {return;}
+    if(PyModule_AddIntConstant(module, "UDT_EPOLL_OUT",   UDT_EPOLL_OUT) == -1  ) {return;}
+    if(PyModule_AddIntConstant(module, "UDT_EPOLL_ERR",   UDT_EPOLL_ERR) == -1  ) {return;}
 }
