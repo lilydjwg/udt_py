@@ -1,7 +1,7 @@
+#include <Python.h>
 #include <iostream>
 #include <memory>
 #include <udt.h>
-#include <Python.h>
 #include <arpa/inet.h>
 
 #include "udt_py.h"
