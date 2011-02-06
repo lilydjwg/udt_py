@@ -1025,11 +1025,10 @@ PY_TRY_CXX
     int eid = ((pyudt_epoll_object*)self)->eid;
     PyObject *sock = NULL;
     
-    /*
-    if(!PyArg_ParseTuple(args, "O!", sock, &pyudt_socket_type))
+    if(!PyArg_ParseTuple(args, "O!", &pyudt_socket_type, &sock))
     {
         return NULL;
-    }*/
+    }
 
     /*
     if(UDT::epoll_add_usock(eid, ))

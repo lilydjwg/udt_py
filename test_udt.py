@@ -158,7 +158,8 @@ class TestSocket(unittest.TestCase):
 
     def test_epoll_add_usock(self):
         epoll = udt.epoll()
-        epoll.add_usock(None)
+        s  = self.create_socket()
+        epoll.add_usock(s)
 
 unittest.main()
 
