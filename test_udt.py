@@ -143,8 +143,8 @@ class TestSocket(unittest.TestCase):
         val = s.getsockopt(0, udt.UDT_MAXBW)
         self.assertEquals(val, -1)
 
-    def test_setsockopt(self):
-        pass
+    def test_epoll(self):
+        epoll = udt.epoll()
 
 unittest.main()
 
