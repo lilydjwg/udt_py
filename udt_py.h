@@ -28,6 +28,13 @@ typedef struct
 
 } pyudt_socket_object;
 
+typedef struct 
+{
+    PyObject_HEAD;
+    int eid;
+
+} pyudt_epoll_object;
+
 class RecvBuffer
 {
     public:
