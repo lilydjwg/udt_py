@@ -1,4 +1,5 @@
 #include <udt.h>
+#include <map>
 
 typedef struct py_udt_error        : std::exception {} py_udt_error;
 typedef struct cc_general_error    : std::exception {} cc_general_error;
@@ -32,6 +33,8 @@ typedef struct
 {
     PyObject_HEAD;
     int eid;
+    PyObject *udt_sockets;
+    PyObject *sys_sockets;
 
 } pyudt_epoll_object;
 

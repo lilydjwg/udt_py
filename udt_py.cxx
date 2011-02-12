@@ -116,7 +116,6 @@ unsigned int RecvBuffer::set_buf_len(unsigned int new_len)
     return buf_len;
 }
 
-
 int pyudt_epoll_init(PyObject *self, PyObject *args, PyObject *kwargs)
 {
 PY_TRY_CXX
@@ -149,7 +148,6 @@ PY_TRY_CXX
     Py_RETURN_NONE;
 PY_CATCH_CXX(NULL)
 }
-
 
 static PyObject* pyudt_epoll_get_eid(PyObject *py_epoll)
 {
@@ -220,7 +218,7 @@ static PyTypeObject pyudt_epoll_type = {
     0,                              /* tp_descr_get */
     0,                              /* tp_descr_set */
     0,                              /* tp_dictoffset */
-    (initproc)pyudt_epoll_init,    /* tp_init */
+    (initproc)pyudt_epoll_init,     /* tp_init */
     0,                              /* tp_alloc */
     0,                              /* tp_new */
 
@@ -1023,18 +1021,19 @@ static PyObject* pyudt_epoll_add_usock(PyObject *self, PyObject *args, PyObject 
 {
 PY_TRY_CXX
     int eid = ((pyudt_epoll_object*)self)->eid;
-    PyObject *sock = NULL;
+    int events = 0;
+
+    pyudt_socket_object *py_socket = NULL;
     
-    if(!PyArg_ParseTuple(args, "O!", &pyudt_socket_type, &sock))
+    if(!PyArg_ParseTuple(args, "O!i", &pyudt_socket_type, &py_socket, &events))
     {
         return NULL;
     }
-
-    /*
-    if(UDT::epoll_add_usock(eid, ))
+    
+    if(UDT::epoll_add_usock(eid, py_socket->cc_socket, &events) == UDT::ERROR)
     {
         throw py_udt_error();
-    }*/
+    }
     Py_RETURN_NONE;
 PY_CATCH_CXX(NULL)
 }
