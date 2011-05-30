@@ -1,9 +1,11 @@
 #!/usr/bin/python
 
+import sys
+import socket
 import unittest
+
 import udt
 import _udt
-import socket
 
 class TestSocket(unittest.TestCase):
     def create_socket(self):
@@ -159,8 +161,35 @@ class TestSocket(unittest.TestCase):
     def test_epoll_add_usock(self):
         epoll = udt.epoll()
         s  = self.create_socket()
-        s.close()
         epoll.add_usock(s, udt.UDT_EPOLL_IN)
+
+    def test_epoll_add_ssock(self):
+        epoll = udt.epoll()
+        s = socket.socket()
+        epoll.add_ssock(s, udt.UDT_EPOLL_IN)
+
+    def test_epoll_remove_usock(self):
+        epoll = udt.epoll()
+        s  = self.create_socket()
+        epoll.remove_usock(s, udt.UDT_EPOLL_IN)
+
+    def test_epoll_remove_bad_usock(self):
+        epoll = udt.epoll()
+        s  = self.create_socket()
+        s.close()
+        self.assertRaises(RuntimeError, epoll.remove_usock, s, udt.UDT_EPOLL_IN)
+
+    # FIXME - broken functionality in UDT ?
+    def _test_epoll_remove_ssock(self):
+        epoll = udt.epoll()
+        s = socket.socket()
+        epoll.add_ssock(s, 0)
+        epoll.remove_ssock(s, 0)
+
+    def test_epoll_wait(self):
+        s = self.create_socket()
+    
+
 
 unittest.main()
 

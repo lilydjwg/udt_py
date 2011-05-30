@@ -7,16 +7,27 @@ typedef struct cc_general_error    : std::exception {} cc_general_error;
 class AutoGILCallOut
 {
     public:
-    AutoGILCallOut(){};
-    ~AutoGILCallOut(){};
+        AutoGILCallOut(){};
+        ~AutoGILCallOut(){};
 };
 
 class AutoGILCallBack
 {
     public:
-    AutoGILCallBack(){};
-    ~AutoGILCallBack(){};
+        AutoGILCallBack(){};
+        ~AutoGILCallBack(){};
 
+};
+
+class AutoDecref
+{
+    public:
+        AutoDecref(PyObject *o);
+        ~AutoDecref();
+        void ok();
+
+    private:
+        PyObject *ptr;
 };
 
 typedef struct 
@@ -33,9 +44,6 @@ typedef struct
 {
     PyObject_HEAD;
     int eid;
-    PyObject *udt_sockets;
-    PyObject *sys_sockets;
-
 } pyudt_epoll_object;
 
 class RecvBuffer

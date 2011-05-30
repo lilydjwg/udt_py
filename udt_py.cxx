@@ -3,11 +3,16 @@
 #include <memory>
 #include <udt.h>
 #include <arpa/inet.h>
+#include <set>
 
 #include "udt_py.h"
 
 PyObject* pyudt_socket_accept(PyObject *self, PyObject *args, PyObject *kwargs);
 static PyObject* pyudt_epoll_add_usock(PyObject *self, PyObject *args, PyObject *kwargs);
+static PyObject* pyudt_epoll_add_ssock(PyObject *self, PyObject *args, PyObject *kwargs);
+static PyObject* pyudt_epoll_remove_usock(PyObject *self, PyObject *args, PyObject *kwargs);
+static PyObject* pyudt_epoll_remove_ssock(PyObject *self, PyObject *args, PyObject *kwargs);
+static PyObject* pyudt_epoll_wait(PyObject *self, PyObject *args, PyObject *kwargs);
 
 #define PY_TRY_CXX \
 try \
@@ -40,6 +45,25 @@ catch(...) \
 {\
     PyErr_SetString(PyExc_RuntimeError, "C++ error"); \
     return ret_val; \
+}
+
+
+AutoDecref::AutoDecref(PyObject *ptr)
+{
+    this->ptr = ptr;   
+}
+
+AutoDecref::~AutoDecref()
+{
+    if(this->ptr != NULL)
+    {
+        Py_DECREF(ptr);
+    }
+}
+
+void AutoDecref::ok()
+{
+    this->ptr = NULL;
 }
 
 PyObject* pyudt_cleanup(PyObject *self, PyObject *args, PyObject *kwargs)
@@ -127,7 +151,11 @@ PY_TRY_CXX
 
     pyudt_epoll_object* py_epoll = ((pyudt_epoll_object*)self);
     py_epoll->eid = UDT::epoll_create();
-
+        
+    if(py_epoll->eid < 0)
+    {
+        throw py_udt_error();
+    }    
     return 0;
 PY_CATCH_CXX(-1)
 }
@@ -176,7 +204,31 @@ static PyMethodDef pyudt_epoll_methods[] = {
         "add_usock",  
         (PyCFunction)pyudt_epoll_add_usock, 
         METH_VARARGS, 
-        "add usock to epoll"
+        "add udt socket to epoll"
+    },
+    {
+        "add_ssock",  
+        (PyCFunction)pyudt_epoll_add_ssock, 
+        METH_VARARGS, 
+        "add system socket to epoll"
+    },
+    {
+        "remove_usock",  
+        (PyCFunction)pyudt_epoll_remove_usock, 
+        METH_VARARGS, 
+        "remove udt socket from epoll"
+    },
+    {
+        "remove_ssock",  
+        (PyCFunction)pyudt_epoll_remove_ssock, 
+        METH_VARARGS, 
+        "remove system socket from epoll"
+    },
+    {
+        "epoll_wait",  
+        (PyCFunction)pyudt_epoll_wait, 
+        METH_VARARGS, 
+        "wait on a epoll events"
     },
     {NULL}  /* Sentinel */
 };
@@ -382,7 +434,6 @@ PY_TRY_CXX
     }
 
     pyudt_socket_object* py_socket = ((pyudt_socket_object*)self);
-
     py_socket->cc_socket = cc_socket;
     py_socket->family = family;
     py_socket->type = type;
@@ -1009,14 +1060,15 @@ PY_TRY_CXX
 
     py_client->cc_socket = cc_client;
     py_client->family = client_addr.sin_family;
-    py_client->type =  py_socket->type;     // FIXME
-    py_client->proto = py_socket->proto;     // FIXME
+    py_client->type =  py_socket->type;         // FIXME
+    py_client->proto = py_socket->proto;        // FIXME
     return (PyObject*)py_client;
 
 
 PY_CATCH_CXX(NULL)
 }
 
+/* FIXME - should accept None. */
 static PyObject* pyudt_epoll_add_usock(PyObject *self, PyObject *args, PyObject *kwargs)
 {
 PY_TRY_CXX
@@ -1030,14 +1082,161 @@ PY_TRY_CXX
         return NULL;
     }
     
-    if(UDT::epoll_add_usock(eid, py_socket->cc_socket, &events) == UDT::ERROR)
+    int rv = UDT::epoll_add_usock(eid, py_socket->cc_socket, &events);
+
+    if(rv < 0)
     {
         throw py_udt_error();
     }
-    Py_RETURN_NONE;
+    return Py_BuildValue("i", rv);
 PY_CATCH_CXX(NULL)
 }
 
+
+/* FIXME - should accept None. */
+static PyObject* pyudt_epoll_add_ssock(PyObject *self, PyObject *args, PyObject *kwargs)
+{
+PY_TRY_CXX
+    int eid = ((pyudt_epoll_object*)self)->eid;
+    int events = 0;
+
+
+    PyObject *py_socket = NULL;
+    
+    if(!PyArg_ParseTuple(args, "Oi", &py_socket, &events))
+    {
+        return NULL;
+    }
+    
+    PyObject* py_socket_id = PyObject_CallMethod(py_socket, (char*)"fileno", (char*)"", NULL);
+    if(!py_socket_id)
+    {
+        return NULL;
+    }
+    
+    PyErr_Clear();
+
+    long fileno = PyInt_AsLong(py_socket_id);
+
+    if(fileno == -1 && PyErr_Occurred())
+    {
+        return NULL;
+    }
+    
+    int rv = UDT::epoll_add_ssock(eid, fileno, &events);
+
+    if(rv < 0)
+    {
+        throw py_udt_error();
+    }
+    return Py_BuildValue("i", rv);
+PY_CATCH_CXX(NULL)
+}
+
+/* FIXME - should accept None. */
+static PyObject* pyudt_epoll_remove_usock(PyObject *self, PyObject *args, PyObject *kwargs)
+{
+PY_TRY_CXX
+    int eid = ((pyudt_epoll_object*)self)->eid;
+    int events = 0;
+
+    pyudt_socket_object *py_socket = NULL;
+    
+    if(!PyArg_ParseTuple(args, "O!i", &pyudt_socket_type, &py_socket, &events))
+    {
+        return NULL;
+    }
+
+    int rv = UDT::epoll_remove_usock(eid, py_socket->cc_socket, &events);
+
+    if(rv < 0)
+    {
+        throw py_udt_error();
+    }
+    return Py_BuildValue("i", rv);
+PY_CATCH_CXX(NULL)
+}
+
+
+/* FIXME - should accept None. */
+static PyObject* pyudt_epoll_remove_ssock(PyObject *self, PyObject *args, PyObject *kwargs)
+{
+PY_TRY_CXX
+    int eid = ((pyudt_epoll_object*)self)->eid;
+    int events = 0;
+
+
+    PyObject *py_socket = NULL;
+    
+    if(!PyArg_ParseTuple(args, "Oi", &py_socket, &events))
+    {
+        return NULL;
+    }
+    
+    PyObject* py_socket_id = PyObject_CallMethod(py_socket, (char*)"fileno", (char*)"", NULL);
+    if(!py_socket_id)
+    {
+        return NULL;
+    }
+    
+    PyErr_Clear();
+
+    long fileno = PyInt_AsLong(py_socket_id);
+
+    if(fileno == -1 && PyErr_Occurred())
+    {
+        return NULL;
+    }
+    
+    int rv = UDT::epoll_remove_ssock(eid, fileno, NULL);
+
+    if(rv < 0)
+    {
+        throw py_udt_error();
+    }
+    return Py_BuildValue("i", rv);
+PY_CATCH_CXX(NULL)
+}
+
+static PyObject* pyudt_epoll_wait(PyObject *self, PyObject *args, PyObject *kwargs)
+{
+
+    PyObject *r_sock_list = NULL;
+    PyObject *w_sock_list = NULL;
+    int64_t timeout = 0;
+
+    std::set<UDTSOCKET> r_sock_out;    
+    std::set<UDTSOCKET> w_sock_out;
+    
+    int eid = ((pyudt_epoll_object*)self)->eid;
+
+    if(!PyArg_ParseTuple(args, "OOi", &r_sock_list, &w_sock_list, &timeout))
+    {
+        return NULL;
+    }
+
+    if(!PyList_Check(r_sock_list))
+    {
+        PyErr_SetString(PyExc_TypeError, "read socks must be a list");
+    }
+
+    if(!PyList_Check(w_sock_list))
+    {
+        PyErr_SetString(PyExc_TypeError, "write socks must be a list");
+    }
+    
+    /* FIXME - Type check list items */
+    for(int i = 0; i < PyList_Size(r_socket_list); i++)
+    {
+    }
+
+    /* FIXME - Type check list items */
+    for(int i = 0; i < PyList_Size(r_socket_list); i++)
+    {
+    }
+    
+
+}
 
 PyMODINIT_FUNC
 init_udt(void)
