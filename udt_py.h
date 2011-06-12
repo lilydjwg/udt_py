@@ -1,22 +1,31 @@
+#include <Python.h>
 #include <udt.h>
 #include <map>
 
 typedef struct py_udt_error        : std::exception {} py_udt_error;
 typedef struct cc_general_error    : std::exception {} cc_general_error;
 
+/* 
+    FIXME - Need to implement GIL handling 
+*/
 class AutoGILCallOut
 {
     public:
-        AutoGILCallOut(){};
-        ~AutoGILCallOut(){};
+        AutoGILCallOut();
+        ~AutoGILCallOut();
+
+    private:
+        PyThreadState *state;
 };
 
 class AutoGILCallBack
 {
     public:
-        AutoGILCallBack(){};
-        ~AutoGILCallBack(){};
-
+        AutoGILCallBack();
+        ~AutoGILCallBack();
+    
+    private:
+        PyGILState_STATE  state;
 };
 
 class AutoDecref

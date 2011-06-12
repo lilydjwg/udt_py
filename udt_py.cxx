@@ -8,10 +8,13 @@
 #include "udt_py.h"
 
 PyObject* pyudt_socket_accept(PyObject *self, PyObject *args, PyObject *kwargs);
+
 static PyObject* pyudt_epoll_add_usock(PyObject *self, PyObject *args, PyObject *kwargs);
-static PyObject* pyudt_epoll_add_ssock(PyObject *self, PyObject *args, PyObject *kwargs);
 static PyObject* pyudt_epoll_remove_usock(PyObject *self, PyObject *args, PyObject *kwargs);
+
+static PyObject* pyudt_epoll_add_ssock(PyObject *self, PyObject *args, PyObject *kwargs);
 static PyObject* pyudt_epoll_remove_ssock(PyObject *self, PyObject *args, PyObject *kwargs);
+
 static PyObject* pyudt_epoll_wait(PyObject *self, PyObject *args, PyObject *kwargs);
 
 #define PY_TRY_CXX \
@@ -64,6 +67,26 @@ AutoDecref::~AutoDecref()
 void AutoDecref::ok()
 {
     this->ptr = NULL;
+}
+
+AutoGILCallOut::AutoGILCallOut()
+{
+    state = PyEval_SaveThread();
+}
+
+AutoGILCallOut::~AutoGILCallOut()
+{
+    PyEval_RestoreThread(state);
+}
+
+AutoGILCallBack::AutoGILCallBack()
+{
+    state = PyGILState_Ensure();
+}
+
+AutoGILCallBack::~AutoGILCallBack()
+{
+     PyGILState_Release(state);
 }
 
 PyObject* pyudt_cleanup(PyObject *self, PyObject *args, PyObject *kwargs)
@@ -459,7 +482,10 @@ PY_TRY_CXX
         return NULL;
     }
     
-    send_len = UDT::send(py_socket->cc_socket, buf, buf_len, flags);
+    {
+        AutoGILCallOut g;
+        send_len = UDT::send(py_socket->cc_socket, buf, buf_len, flags);
+    }
 
     if(send_len == UDT::ERROR) 
     {
@@ -865,6 +891,22 @@ PY_TRY_CXX
 PY_CATCH_CXX(NULL)
 }
 
+
+PyObject* pyudt_socket_fileno(PyObject *self, PyObject *args, PyObject *kwargs)
+{
+PY_TRY_CXX
+
+    pyudt_socket_object* py_socket = ((pyudt_socket_object*)self);
+
+    if(!PyArg_ParseTuple(args, ""))
+    {
+        return NULL;
+    }
+    return Py_BuildValue("l", py_socket->cc_socket);
+
+PY_CATCH_CXX(NULL)
+}
+
 static PyMethodDef pyudt_socket_methods[] = {
     {
         "accept",  
@@ -937,6 +979,12 @@ static PyMethodDef pyudt_socket_methods[] = {
         (PyCFunction)pyudt_socket_setsockopt, 
         METH_VARARGS, 
         "set socket options"
+    },
+    {
+        "fileno",  
+        (PyCFunction)pyudt_socket_fileno, 
+        METH_VARARGS, 
+        "get socket file descriptor"
     },
     {NULL}  /* Sentinel */
 };
@@ -1042,11 +1090,16 @@ PY_TRY_CXX
         return NULL;
     }
 
-    UDTSOCKET cc_client = UDT::accept(
-        py_socket->cc_socket, 
-        (sockaddr*)&client_addr, 
-        &namelen
-    );
+    UDTSOCKET cc_client = 0;
+    {
+        AutoGILCallOut g;
+
+        cc_client = UDT::accept(
+            py_socket->cc_socket, 
+            (sockaddr*)&client_addr, 
+            &namelen
+        );
+    }
 
     if (cc_client == UDT::ERROR)
     {
@@ -1074,15 +1127,14 @@ static PyObject* pyudt_epoll_add_usock(PyObject *self, PyObject *args, PyObject 
 PY_TRY_CXX
     int eid = ((pyudt_epoll_object*)self)->eid;
     int events = 0;
+    int fileno = 0;
 
-    pyudt_socket_object *py_socket = NULL;
-    
-    if(!PyArg_ParseTuple(args, "O!i", &pyudt_socket_type, &py_socket, &events))
+    if(!PyArg_ParseTuple(args, "ii", &fileno, &events))
     {
         return NULL;
     }
     
-    int rv = UDT::epoll_add_usock(eid, py_socket->cc_socket, &events);
+    int rv = UDT::epoll_add_usock(eid, fileno, &events);
 
     if(rv < 0)
     {
@@ -1099,26 +1151,9 @@ static PyObject* pyudt_epoll_add_ssock(PyObject *self, PyObject *args, PyObject 
 PY_TRY_CXX
     int eid = ((pyudt_epoll_object*)self)->eid;
     int events = 0;
+    int fileno = 0;
 
-
-    PyObject *py_socket = NULL;
-    
-    if(!PyArg_ParseTuple(args, "Oi", &py_socket, &events))
-    {
-        return NULL;
-    }
-    
-    PyObject* py_socket_id = PyObject_CallMethod(py_socket, (char*)"fileno", (char*)"", NULL);
-    if(!py_socket_id)
-    {
-        return NULL;
-    }
-    
-    PyErr_Clear();
-
-    long fileno = PyInt_AsLong(py_socket_id);
-
-    if(fileno == -1 && PyErr_Occurred())
+    if(!PyArg_ParseTuple(args, "ii", &fileno, &events))
     {
         return NULL;
     }
@@ -1139,15 +1174,14 @@ static PyObject* pyudt_epoll_remove_usock(PyObject *self, PyObject *args, PyObje
 PY_TRY_CXX
     int eid = ((pyudt_epoll_object*)self)->eid;
     int events = 0;
+    int fileno = 0;
 
-    pyudt_socket_object *py_socket = NULL;
-    
-    if(!PyArg_ParseTuple(args, "O!i", &pyudt_socket_type, &py_socket, &events))
+    if(!PyArg_ParseTuple(args, "ii", &fileno, &events))
     {
         return NULL;
     }
 
-    int rv = UDT::epoll_remove_usock(eid, py_socket->cc_socket, &events);
+    int rv = UDT::epoll_remove_usock(eid, fileno, &events);
 
     if(rv < 0)
     {
@@ -1164,31 +1198,14 @@ static PyObject* pyudt_epoll_remove_ssock(PyObject *self, PyObject *args, PyObje
 PY_TRY_CXX
     int eid = ((pyudt_epoll_object*)self)->eid;
     int events = 0;
+    int fileno = 0;
 
-
-    PyObject *py_socket = NULL;
-    
-    if(!PyArg_ParseTuple(args, "Oi", &py_socket, &events))
+    if(!PyArg_ParseTuple(args, "ii", &fileno, &events))
     {
         return NULL;
     }
     
-    PyObject* py_socket_id = PyObject_CallMethod(py_socket, (char*)"fileno", (char*)"", NULL);
-    if(!py_socket_id)
-    {
-        return NULL;
-    }
-    
-    PyErr_Clear();
-
-    long fileno = PyInt_AsLong(py_socket_id);
-
-    if(fileno == -1 && PyErr_Occurred())
-    {
-        return NULL;
-    }
-    
-    int rv = UDT::epoll_remove_ssock(eid, fileno, NULL);
+    int rv = UDT::epoll_remove_ssock(eid, fileno, &events);
 
     if(rv < 0)
     {
@@ -1200,42 +1217,135 @@ PY_CATCH_CXX(NULL)
 
 static PyObject* pyudt_epoll_wait(PyObject *self, PyObject *args, PyObject *kwargs)
 {
+PY_TRY_CXX
 
-    PyObject *r_sock_list = NULL;
-    PyObject *w_sock_list = NULL;
+    PyObject *r_usock_set = NULL;
+    PyObject *w_usock_set = NULL;
+    
+    PyObject *r_ssock_set = NULL;
+    PyObject *w_ssock_set = NULL;
+
     int64_t timeout = 0;
-
-    std::set<UDTSOCKET> r_sock_out;    
-    std::set<UDTSOCKET> w_sock_out;
     
     int eid = ((pyudt_epoll_object*)self)->eid;
 
-    if(!PyArg_ParseTuple(args, "OOi", &r_sock_list, &w_sock_list, &timeout))
+    if(!PyArg_ParseTuple(args, "i", &timeout))
     {
         return NULL;
     }
 
-    if(!PyList_Check(r_sock_list))
-    {
-        PyErr_SetString(PyExc_TypeError, "read socks must be a list");
-    }
+    r_usock_set = PySet_New(0);
+    if(!r_usock_set) return NULL;
+    AutoDecref dec1(r_usock_set);
 
-    if(!PyList_Check(w_sock_list))
+    w_usock_set = PySet_New(0);
+    if(!w_usock_set) return NULL;
+    AutoDecref dec2(w_usock_set);
+
+    r_ssock_set = PySet_New(0);
+    if(!r_ssock_set) return NULL;
+    AutoDecref dec3(r_ssock_set);
+
+    w_ssock_set = PySet_New(0);
+    if(!w_ssock_set) return NULL;
+    AutoDecref dec4(w_ssock_set);
+
+    std::set<UDTSOCKET> r_usock_out;    
+    std::set<UDTSOCKET> w_usock_out;
+
+    std::set<SYSSOCKET> r_ssock_out;    
+    std::set<SYSSOCKET> w_ssock_out;
+
     {
-        PyErr_SetString(PyExc_TypeError, "write socks must be a list");
+        AutoGILCallOut g;
+        if(UDT::epoll_wait(eid, &r_usock_out, &w_usock_out, timeout) < 0)
+        {
+            throw py_udt_error();
+        }
     }
     
-    /* FIXME - Type check list items */
-    for(int i = 0; i < PyList_Size(r_socket_list); i++)
+    std::set<UDTSOCKET>::const_iterator usock_iter;
+    for(usock_iter = r_usock_out.begin(); usock_iter != r_usock_out.end(); ++usock_iter)
     {
+
+        PyObject *i = PyInt_FromLong(*usock_iter);
+
+        if(!i)
+        {
+            return NULL;
+        }
+
+        if(PySet_Add(r_usock_set, i) == -1)
+        {
+            return NULL;
+        }
     }
 
-    /* FIXME - Type check list items */
-    for(int i = 0; i < PyList_Size(r_socket_list); i++)
+    for(usock_iter = w_usock_out.begin(); usock_iter != w_usock_out.end(); ++usock_iter)
     {
-    }
-    
 
+        PyObject *i = PyInt_FromLong(*usock_iter);
+
+        if(!i)
+        {
+            return NULL;
+        }
+
+        if(PySet_Add(w_usock_set, i) == -1)
+        {
+            return NULL;
+        }
+    }
+
+    std::set<UDTSOCKET>::const_iterator ssock_iter;
+    for(ssock_iter = r_ssock_out.begin(); ssock_iter != r_ssock_out.end(); ++ssock_iter)
+    {
+
+        PyObject *i = PyInt_FromLong(*ssock_iter);
+
+        if(!i)
+        {
+            return NULL;
+        }
+
+        if(PySet_Add(r_ssock_set, i) == -1)
+        {
+            return NULL;
+        }
+    }
+
+    for(ssock_iter = w_ssock_out.begin(); ssock_iter != w_ssock_out.end(); ++ssock_iter)
+    {
+
+        PyObject *i = PyInt_FromLong(*ssock_iter);
+
+        if(!i)
+        {
+            return NULL;
+        }
+
+        if(PySet_Add(w_ssock_set, i) == -1)
+        {
+            return NULL;
+        }
+    }
+
+    PyObject *ret = Py_BuildValue(
+        "NNNN", 
+        r_usock_set,
+        w_usock_set,
+        r_ssock_set,
+        w_ssock_set
+    );
+
+    dec1.ok();
+    dec2.ok();
+    dec3.ok();
+    dec4.ok();
+
+    return ret;
+
+PY_CATCH_CXX(NULL)
 }
 
 PyMODINIT_FUNC
@@ -1256,6 +1366,7 @@ init_udt(void)
     {
         return;
     }
+
     Py_INCREF(&pyudt_socket_type);
     Py_INCREF(&pyudt_epoll_type);
     PyModule_AddObject(module, "socket", (PyObject *)&pyudt_socket_type);

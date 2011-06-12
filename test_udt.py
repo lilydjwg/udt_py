@@ -1,4 +1,4 @@
-#!/usr/bin/python
+#!/usr/bin/env python
 
 import sys
 import socket
@@ -57,6 +57,10 @@ class TestSocket(unittest.TestCase):
     
     def test_cleanup(self):
         udt.cleanup()
+    
+    def test_socket_fileno(self):
+        s = self.create_socket()
+        self.assert_(isinstance(s.fileno(), int))
 
     def test_getset_sockopt_mss(self):
         s = self.create_socket()
@@ -161,35 +165,43 @@ class TestSocket(unittest.TestCase):
     def test_epoll_add_usock(self):
         epoll = udt.epoll()
         s  = self.create_socket()
-        epoll.add_usock(s, udt.UDT_EPOLL_IN)
+        self.assertEquals(0, epoll.add_usock(s.fileno(), udt.UDT_EPOLL_IN))
 
     def test_epoll_add_ssock(self):
         epoll = udt.epoll()
-        s = socket.socket()
-        epoll.add_ssock(s, udt.UDT_EPOLL_IN)
+        s1, s2 = socket.socketpair()
+        epoll.add_ssock(s1.fileno(), udt.UDT_EPOLL_IN)
 
     def test_epoll_remove_usock(self):
         epoll = udt.epoll()
         s  = self.create_socket()
-        epoll.remove_usock(s, udt.UDT_EPOLL_IN)
+        epoll.add_usock(s.fileno(), udt.UDT_EPOLL_IN)
+        epoll.remove_usock(s.fileno(), udt.UDT_EPOLL_IN)
 
     def test_epoll_remove_bad_usock(self):
         epoll = udt.epoll()
         s  = self.create_socket()
+        fileno = s.fileno()
         s.close()
-        self.assertRaises(RuntimeError, epoll.remove_usock, s, udt.UDT_EPOLL_IN)
+        self.assertRaises(RuntimeError, epoll.remove_usock, fileno, udt.UDT_EPOLL_IN)
 
     # FIXME - broken functionality in UDT ?
     def _test_epoll_remove_ssock(self):
         epoll = udt.epoll()
-        s = socket.socket()
-        epoll.add_ssock(s, 0)
-        epoll.remove_ssock(s, 0)
+        s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        s.connect(('127.0.0.1', 22))
+        self.assertEquals(
+            epoll.add_ssock(s.fileno(), udt.UDT_EPOLL_IN),
+            0
+        )
+        epoll.remove_ssock(s.fileno(), udt.UDT_EPOLL_IN)
 
     def test_epoll_wait(self):
         s = self.create_socket()
-    
-
+        epoll = udt.epoll()
+        epoll.add_usock(s.fileno(), udt.UDT_EPOLL_IN)
+        print epoll.epoll_wait(0)
+        print epoll.epoll_wait(1)
 
 unittest.main()
 

@@ -40,7 +40,6 @@ class epoll(_udt.epoll):
         return rv
         
     def add_ssock(self, s, events):
-        # according to the docs, adding flags is not supported
         rv = _udt.epoll.add_ssock(self, s, events)
         return rv
     
