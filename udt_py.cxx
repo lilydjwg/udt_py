@@ -1093,7 +1093,6 @@ PY_TRY_CXX
     UDTSOCKET cc_client = 0;
     {
         AutoGILCallOut g;
-
         cc_client = UDT::accept(
             py_socket->cc_socket, 
             (sockaddr*)&client_addr, 
@@ -1110,12 +1109,27 @@ PY_TRY_CXX
             pyudt_socket_object, 
             &pyudt_socket_type
     );
+    
+    AutoDecref dec((PyObject*)py_client);
 
     py_client->cc_socket = cc_client;
     py_client->family = client_addr.sin_family;
     py_client->type =  py_socket->type;         // FIXME
     py_client->proto = py_socket->proto;        // FIXME
-    return (PyObject*)py_client;
+
+    PyObject *ret = Py_BuildValue(
+        "N(si)", 
+        py_client, 
+        inet_ntoa(client_addr.sin_addr),
+        client_addr.sin_port
+    );
+    
+    if(ret == NULL)
+    {
+        return NULL;
+    }
+    dec.ok();
+    return ret;
 
 
 PY_CATCH_CXX(NULL)

@@ -21,7 +21,8 @@ s.listen(10)
 
 
 while 1:
-    client = s.accept()
+    client, addr = s.accept()
+    print "accept", client, addr
     epoll.add_usock(client.fileno(), udt.UDT_EPOLL_IN)
     print 'wait..'
     print epoll.epoll_wait(-1)
