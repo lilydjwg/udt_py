@@ -43,7 +43,7 @@ class StreamServer(dspyte.core.Agent):
 
     def accept(self):
         import udt
-        self.client = self.s.accept()
+        self.client, addr  = self.s.accept()
         self.send_msg('accepted client!')
 
     def recv_data(self):
