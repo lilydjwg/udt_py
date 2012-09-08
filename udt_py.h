@@ -1,5 +1,5 @@
 #include <Python.h>
-#include <udt.h>
+#include <udt/udt.h>
 #include <map>
 
 typedef struct py_udt_error        : std::exception {} py_udt_error;

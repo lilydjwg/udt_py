@@ -1,7 +1,6 @@
 #include <Python.h>
 #include <iostream>
 #include <memory>
-#include <udt.h>
 #include <arpa/inet.h>
 #include <set>
 
