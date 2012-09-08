@@ -15,5 +15,6 @@ setup (
     name = 'udt_py',
     version = '1.0',
     description = 'Python bindings for UDT',
+    py_modules = ['udt'],
     ext_modules = [module]
 )

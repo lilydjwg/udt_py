@@ -12,13 +12,14 @@ class socket(_udt.socket):
         bind_addr = self._get_addr(addr)
         return _udt.socket.bind(self, bind_addr)
 
-    def _get_addr(self, (host, port)):
+    def _get_addr(self, addr):
+        host, port = addr
         family, socktype, proto, name, addr = socketlib.getaddrinfo(
             host,
             port,
             self.family,
             0,
-            self.proto,
+            0,
             0
         )[0]
         return addr
