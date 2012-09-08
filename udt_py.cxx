@@ -258,7 +258,6 @@ static PyMethodDef pyudt_epoll_methods[] = {
 
 static PyTypeObject pyudt_epoll_type = {
     PyObject_HEAD_INIT(NULL)
-    0,                              /* ob_size */
     "_udt.socket",                  /* tp_name */
     sizeof(pyudt_socket_object),    /* tp_basicsize */
     0,                              /* tp_itemsize */
@@ -266,7 +265,7 @@ static PyTypeObject pyudt_epoll_type = {
     0,                              /* tp_print */
     0,                              /* tp_getattr */
     0,                              /* tp_setattr */
-    0,                              /* tp_compare */
+    0,                              /* tp_reserved */
     0,                              /* tp_repr */
     0,                              /* tp_as_number */
     0,                              /* tp_as_sequence */
@@ -477,7 +476,7 @@ PY_TRY_CXX
 
     pyudt_socket_object* py_socket = ((pyudt_socket_object*)self);
 
-    if(!PyArg_ParseTuple(args, "z#i", &buf, &buf_len, &flags))
+    if(!PyArg_ParseTuple(args, "y#i", &buf, &buf_len, &flags))
     {
         return NULL;
     }
@@ -509,7 +508,7 @@ PY_TRY_CXX
 
     pyudt_socket_object* py_socket = ((pyudt_socket_object*)self);
 
-    if(!PyArg_ParseTuple(args, "z#ii", &buf, &buf_len, &ttl, &in_order))
+    if(!PyArg_ParseTuple(args, "y#ii", &buf, &buf_len, &ttl, &in_order))
     {
         return NULL;
     }
@@ -549,7 +548,7 @@ PY_TRY_CXX
     }
 
     recv_buf.set_buf_len(recv_len);
-    return Py_BuildValue("z#", recv_buf.get_head(), recv_len);
+    return Py_BuildValue("y#", recv_buf.get_head(), recv_len);
 
 PY_CATCH_CXX(NULL)
 }
@@ -577,7 +576,7 @@ PY_TRY_CXX
     }
 
     recv_buf.set_buf_len(recv_len);
-    return Py_BuildValue("z#", recv_buf.get_head(), recv_len);
+    return Py_BuildValue("y#", recv_buf.get_head(), recv_len);
 
 PY_CATCH_CXX(NULL)
 }
@@ -1031,9 +1030,18 @@ static PyMethodDef pyudt_methods[] = {
     {NULL, NULL, 0, NULL}   
 };
 
+static PyModuleDef udtmodule = {
+  PyModuleDef_HEAD_INIT,
+  "_udt",
+  "UDT: UDP-based Data Transfer Library",
+  -1,
+  pyudt_methods,
+  NULL, NULL, NULL, NULL
+};
+
+
 static PyTypeObject pyudt_socket_type = {
     PyObject_HEAD_INIT(NULL)
-    0,                              /* ob_size */
     "_udt.socket",                  /* tp_name */
     sizeof(pyudt_socket_object),    /* tp_basicsize */
     0,                              /* tp_itemsize */
@@ -1195,7 +1203,7 @@ PY_TRY_CXX
         return NULL;
     }
 
-    int rv = UDT::epoll_remove_usock(eid, fileno, &events);
+    int rv = UDT::epoll_remove_usock(eid, fileno);
 
     if(rv < 0)
     {
@@ -1219,7 +1227,7 @@ PY_TRY_CXX
         return NULL;
     }
     
-    int rv = UDT::epoll_remove_ssock(eid, fileno, &events);
+    int rv = UDT::epoll_remove_ssock(eid, fileno);
 
     if(rv < 0)
     {
@@ -1282,7 +1290,7 @@ PY_TRY_CXX
     for(usock_iter = r_usock_out.begin(); usock_iter != r_usock_out.end(); ++usock_iter)
     {
 
-        PyObject *i = PyInt_FromLong(*usock_iter);
+        PyObject *i = PyLong_FromLong(*usock_iter);
 
         if(!i)
         {
@@ -1298,7 +1306,7 @@ PY_TRY_CXX
     for(usock_iter = w_usock_out.begin(); usock_iter != w_usock_out.end(); ++usock_iter)
     {
 
-        PyObject *i = PyInt_FromLong(*usock_iter);
+        PyObject *i = PyLong_FromLong(*usock_iter);
 
         if(!i)
         {
@@ -1315,7 +1323,7 @@ PY_TRY_CXX
     for(ssock_iter = r_ssock_out.begin(); ssock_iter != r_ssock_out.end(); ++ssock_iter)
     {
 
-        PyObject *i = PyInt_FromLong(*ssock_iter);
+        PyObject *i = PyLong_FromLong(*ssock_iter);
 
         if(!i)
         {
@@ -1331,7 +1339,7 @@ PY_TRY_CXX
     for(ssock_iter = w_ssock_out.begin(); ssock_iter != w_ssock_out.end(); ++ssock_iter)
     {
 
-        PyObject *i = PyInt_FromLong(*ssock_iter);
+        PyObject *i = PyLong_FromLong(*ssock_iter);
 
         if(!i)
         {
@@ -1363,22 +1371,22 @@ PY_CATCH_CXX(NULL)
 }
 
 PyMODINIT_FUNC
-init_udt(void)
+PyInit__udt(void)
 {
     PyObject *module;
 
     pyudt_socket_type.tp_new = PyType_GenericNew;
     if (PyType_Ready(&pyudt_socket_type) < 0)
-        return;
+        return NULL;
 
     pyudt_epoll_type.tp_new = PyType_GenericNew;
     if (PyType_Ready(&pyudt_epoll_type) < 0)
-        return;
+        return NULL;
 
-    module = Py_InitModule("_udt", pyudt_methods);
+    module = PyModule_Create(&udtmodule);
     if (module == NULL)
     {
-        return;
+        return NULL;
     }
 
     Py_INCREF(&pyudt_socket_type);
@@ -1386,24 +1394,26 @@ init_udt(void)
     PyModule_AddObject(module, "socket", (PyObject *)&pyudt_socket_type);
     PyModule_AddObject(module, "epoll",  (PyObject *)&pyudt_epoll_type);
 
-    if(PyModule_AddIntConstant(module, "UDT_MSS",         UDT_MSS)      == -1   ) {return;}
-    if(PyModule_AddIntConstant(module, "UDT_SNDSYN",      UDT_SNDSYN)   == -1   ) {return;}
-    if(PyModule_AddIntConstant(module, "UDT_RCVSYN",      UDT_RCVSYN)   == -1   ) {return;}
-    if(PyModule_AddIntConstant(module, "UDT_CC",          UDT_CC)       == -1   ) {return;}
-    if(PyModule_AddIntConstant(module, "UDT_FC",          UDT_FC)       == -1   ) {return;}
-    if(PyModule_AddIntConstant(module, "UDT_SNDBUF",      UDT_SNDBUF)   == -1   ) {return;}
-    if(PyModule_AddIntConstant(module, "UDT_RCVBUF",      UDT_RCVBUF)   == -1   ) {return;}
-    if(PyModule_AddIntConstant(module, "UDT_LINGER",      UDT_LINGER)   == -1   ) {return;}
-    if(PyModule_AddIntConstant(module, "UDP_SNDBUF",      UDP_SNDBUF)   == -1   ) {return;}
-    if(PyModule_AddIntConstant(module, "UDP_RCVBUF",      UDP_RCVBUF)   == -1   ) {return;}
-    if(PyModule_AddIntConstant(module, "UDT_MAXMSG",      UDT_MAXMSG)   == -1   ) {return;}
-    if(PyModule_AddIntConstant(module, "UDT_MSGTTL",      UDT_MSGTTL)   == -1   ) {return;}
-    if(PyModule_AddIntConstant(module, "UDT_RENDEZVOUS",  UDT_RENDEZVOUS) == -1 ) {return;}
-    if(PyModule_AddIntConstant(module, "UDT_SNDTIMEO",    UDT_SNDTIMEO) == -1   ) {return;}
-    if(PyModule_AddIntConstant(module, "UDT_RCVTIMEO",    UDT_RCVTIMEO) == -1   ) {return;}
-    if(PyModule_AddIntConstant(module, "UDT_REUSEADDR",   UDT_REUSEADDR) == -1  ) {return;}
-    if(PyModule_AddIntConstant(module, "UDT_MAXBW",       UDT_MAXBW)    == -1   ) {return;}
-    if(PyModule_AddIntConstant(module, "UDT_EPOLL_IN",    UDT_EPOLL_IN) == -1   ) {return;}
-    if(PyModule_AddIntConstant(module, "UDT_EPOLL_OUT",   UDT_EPOLL_OUT) == -1  ) {return;}
-    if(PyModule_AddIntConstant(module, "UDT_EPOLL_ERR",   UDT_EPOLL_ERR) == -1  ) {return;}
+    if(PyModule_AddIntConstant(module, "UDT_MSS",         UDT_MSS)      == -1   ) {return NULL;}
+    if(PyModule_AddIntConstant(module, "UDT_SNDSYN",      UDT_SNDSYN)   == -1   ) {return NULL;}
+    if(PyModule_AddIntConstant(module, "UDT_RCVSYN",      UDT_RCVSYN)   == -1   ) {return NULL;}
+    if(PyModule_AddIntConstant(module, "UDT_CC",          UDT_CC)       == -1   ) {return NULL;}
+    if(PyModule_AddIntConstant(module, "UDT_FC",          UDT_FC)       == -1   ) {return NULL;}
+    if(PyModule_AddIntConstant(module, "UDT_SNDBUF",      UDT_SNDBUF)   == -1   ) {return NULL;}
+    if(PyModule_AddIntConstant(module, "UDT_RCVBUF",      UDT_RCVBUF)   == -1   ) {return NULL;}
+    if(PyModule_AddIntConstant(module, "UDT_LINGER",      UDT_LINGER)   == -1   ) {return NULL;}
+    if(PyModule_AddIntConstant(module, "UDP_SNDBUF",      UDP_SNDBUF)   == -1   ) {return NULL;}
+    if(PyModule_AddIntConstant(module, "UDP_RCVBUF",      UDP_RCVBUF)   == -1   ) {return NULL;}
+    if(PyModule_AddIntConstant(module, "UDT_MAXMSG",      UDT_MAXMSG)   == -1   ) {return NULL;}
+    if(PyModule_AddIntConstant(module, "UDT_MSGTTL",      UDT_MSGTTL)   == -1   ) {return NULL;}
+    if(PyModule_AddIntConstant(module, "UDT_RENDEZVOUS",  UDT_RENDEZVOUS) == -1 ) {return NULL;}
+    if(PyModule_AddIntConstant(module, "UDT_SNDTIMEO",    UDT_SNDTIMEO) == -1   ) {return NULL;}
+    if(PyModule_AddIntConstant(module, "UDT_RCVTIMEO",    UDT_RCVTIMEO) == -1   ) {return NULL;}
+    if(PyModule_AddIntConstant(module, "UDT_REUSEADDR",   UDT_REUSEADDR) == -1  ) {return NULL;}
+    if(PyModule_AddIntConstant(module, "UDT_MAXBW",       UDT_MAXBW)    == -1   ) {return NULL;}
+    if(PyModule_AddIntConstant(module, "UDT_EPOLL_IN",    UDT_EPOLL_IN) == -1   ) {return NULL;}
+    if(PyModule_AddIntConstant(module, "UDT_EPOLL_OUT",   UDT_EPOLL_OUT) == -1  ) {return NULL;}
+    if(PyModule_AddIntConstant(module, "UDT_EPOLL_ERR",   UDT_EPOLL_ERR) == -1  ) {return NULL;}
+
+    return module;
 }
