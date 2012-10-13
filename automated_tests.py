@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 
 import socket
 import os
@@ -11,9 +11,9 @@ import dspyte.core
 class Pinger(threading.Thread):
     def run(self):
         for i in range(60):
-            print "xxxxxx", i, time.time()
+            print("xxxxxx", i, time.time())
             time.sleep(1)
-            
+
 class ConnectionTest(dspyte.core.Main):
     """
     Basic connection test
@@ -48,14 +48,14 @@ class StreamServer(dspyte.core.Agent):
 
     def recv_data(self):
         self.send_msg("got %s" % self.client.recv(1024, 0))
-        
+
 class StreamClient(dspyte.core.Agent):
     name = 'client'
     def connect(self):
         import udt
         import ctypes
         self.s = udt.socket(socket.AF_INET, socket.SOCK_STREAM, 0)
-        print self.s.connect(("localhost", StreamServer.port))
+        print(self.s.connect(("localhost", StreamServer.port)))
         self.send_msg("connection ok!")
 
     def send_data(self):

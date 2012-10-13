@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 
 import udt
 import socket
@@ -8,7 +8,7 @@ import threading
 class Pinger(threading.Thread):
     def run(self):
         for i in range(300):
-            print "ping ...", i
+            print("ping ...", i)
             time.sleep(1)
 
 p = Pinger()
@@ -20,12 +20,12 @@ s.bind(("127.0.0.1", 5555))
 s.listen(10)
 
 
-while 1:
+while True:
     client, addr = s.accept()
-    print "accept", client, addr
+    print("accept", client, addr)
     epoll.add_usock(client.fileno(), udt.UDT_EPOLL_IN)
-    print 'wait..'
-    print epoll.epoll_wait(-1)
-    print 'got data..'
-    client.send("Hello World" * 10, -1)
+    print('wait..')
+    print(epoll.epoll_wait(-1))
+    print('got data..')
+    client.send(b"Hello World" * 10, -1)
     client.close()

@@ -1,2 +1,7 @@
-* [UDT::sendfile](http://udt.sourceforge.net/udt4/doc/sendfile.htm)
-* [UDT::recvfile](http://udt.sourceforge.net/udt4/doc/recvfile.htm)
+* Bugs
+  * one test in test\_udt.py fails
+  * `Ctrl-C` can't terminate test_server
+
+* Features
+  * [UDT::sendfile](http://udt.sourceforge.net/udt4/doc/sendfile.htm)
+  * [UDT::recvfile](http://udt.sourceforge.net/udt4/doc/recvfile.htm)
